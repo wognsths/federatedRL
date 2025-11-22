@@ -37,7 +37,7 @@ python scripts/run_centralized.py --algo optidice --data halfcheetah_medium_repl
 - **Dual update**: clients update `(ν, λ)` with the OptiDICE dual loss using their data; ratio stats (`mean`, `std`, `second_moment`) are logged.
 - **Actor update (weighted BC)**: clients train the actor with `−E_{(s,a)~D}[ w_global(s,a) log π(a|s) ]` (optional entropy reg), i.e., a supervised policy fit weighted by the shared ratio.
 - **Aggregate (two modes)**:
-  - *Dual-averaging*: server aggregates `(ν, λ)` (FedAvg or ratio-weighted) and broadcasts; actor/behavior can be size-weighted FedAvg. `w` 자체를 모으지 않고 듀얼로 정의된 `w_global`을 각 클라이언트가 계산.
+  - *Dual-averaging*: server aggregates `(ν, λ)` (FedAvg or ratio-weighted) and broadcasts; actor/behavior can be size-weighted FedAvg. `w` itself is not aggregated; `w_global` is defined by the dual and computed locally on each client.
   - *Reference-buffer*: server builds a small shared buffer; clients evaluate `w_i` on that buffer, and the server weights aggregation using `w_i` stability (ESS/variance).
 - **Repeat**: broadcast the new dual/actor/behavior and continue.
 Summaries / rounds-to-X:
