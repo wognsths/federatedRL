@@ -1,0 +1,3 @@
+name: fedprox
+beta: 0.01
+client_weighting: size

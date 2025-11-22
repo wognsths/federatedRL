@@ -1,0 +1,156 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+
+\setlength{\parindent}{0pt}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\KL}{\operatorname{KL}}
+\newcommand{\1}{\mathbbm{1}}
+\newcommand{\R}{\mathbb{R}}
+
+\title{Federated Offline RL with OptiDICE\\Mathematical Notes}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Preliminaries}
+
+We study a set of $K$ offline clients. Client $k$ owns a static dataset $D_k = \{(s_i,a_i,r_i,s_i')\}_{i=1}^{N_k}$ that is sampled from an unknown behavior policy $\beta_k$. Let $\mu_k = N_k / \sum_j N_j$ denote the size-proportional weight. The global objective is to learn a policy $\pi$ that maximizes the expected discounted return
+\begin{equation}
+    J(\pi) = \E_{s_0 \sim p_0, \pi} \left[ \sum_{t=0}^{\infty} \gamma^t r(s_t, a_t) \right],
+\end{equation}
+while respecting federation (only parameter exchanges) and the offline constraint (no environment interaction).
+
+Throughout, $d^{\pi}(s,a)$ denotes the stationary discounted distribution induced by $\pi$, while $d_{D_k}(s,a)$ is the empirical distribution of client $k$. Non-IIDness is introduced via trajectory return quantiles, state clusters, or action-support skew as detailed in \texttt{docs/PLAN.md}.
+
+\section{Algorithms}
+
+\subsection{Naive FedAvg-RL (SAC/TD3)}
+Each client runs entropy-regularized policy gradients (Soft Actor Critic) on its dataset, producing updated actor/critic parameters $\theta_k$. The server aggregates parameters via FedAvg:
+\begin{equation}
+    \theta^{(t+1)} = \sum_{k=1}^K \mu_k \theta_k^{(t)}.
+\end{equation}
+No explicit correction is used; divergence is expected when $\beta_k$ diverges from $\pi$.
+
+\subsection{Fed+CQL}
+Conservative Q-Learning augments the Bellman error with a log-sum-exp term that penalizes overestimation on out-of-dataset actions. For client $k$ the critic update solves
+\begin{align}
+    \mathcal{L}^{(k)}_{\text{CQL}}(\theta)
+    &= \E_{(s,a)\sim D_k}\Big[(Q_\theta(s,a) - \hat{\mathcal{T}} Q_{\theta^-}(s,a))^2\Big] \\
+    &\quad + \alpha \left( \underbrace{\log \int \exp(Q_\theta(s,\tilde{a})) \,\mathrm{d}\tilde{a}}_{\text{conservative push-down}} - \E_{(s,a)\sim D_k}[Q_\theta(s,a)] \right).
+\end{align}
+In practice the integral is approximated with samples from a mixture of $\pi_\theta$, uniform noise, and policy rollouts. The additional term lower-bounds the critic, ensuring pessimism when the dataset lacks coverage. On the federated server, CQL parameters are exchanged using FedAvg, FedProx, or SCAFFOLD just as SAC, but the conservative penalty cushions clients exposed to weak behavior policies.
+
+\subsection{Fed+OptiDICE}
+OptiDICE (Optimization-based Dual Stationary Correction Estimator) reformulates policy evaluation as a convex dual optimization in stationary ratio space. Let $f$ be the convex generator of an $f$-divergence. The Fenchel dual yields
+\begin{equation}
+    \min_{\pi} \max_{\nu,\lambda} (1-\gamma) \E_{p_0}[\nu(s)]
+    + \E_{(s,a,s') \sim D_k} \left[ w^{\star}(s,a) (e_\nu(s,a) - \lambda) - \alpha f(w^{\star}(s,a)) \right],
+\end{equation}
+with temporal consistency error $e_\nu(s,a)=r+\gamma \nu(s')-\nu(s)$. Choosing $f(x)=x\log x - x + 1$ (KL divergence) gives the closed form
+\begin{equation}
+    w^{\star}(s,a)=\exp\left(\frac{e_\nu(s,a)-\lambda}{\alpha}-1\right).
+\end{equation}
+The critic step optimizes $\nu,\lambda$ using local data, producing $w^{\star}$ estimates; the actor step performs an I-projection onto a behavior prior $\pi_{\beta,k}$:
+\begin{equation}
+    \min_{\pi} \E_{s\sim D_k}\left[ \KL(\pi(\cdot|s)\|\pi_{\beta,k}(\cdot|s)) - \E_{a\sim \pi(\cdot|s)}[\log w^{\star}(s,a)] \right].
+\end{equation}
+This encourages staying close to behavior while exploiting states/actions with large ratios. Since every client aligns to the same target distribution $d^{\pi}$ via $w^{\star}$, federated aggregation experiences far less gradient disagreement.
+
+\subsection{FedProx and SCAFFOLD}
+FedProx augments the local loss with $\frac{\beta}{2}\|\theta_k-\theta^{(t)}\|^2$, ensuring each client remains near the broadcast model. SCAFFOLD tracks control variates $c_k$ to correct for client drift, updating local gradients as $g_k' = g_k - c_k + \bar{c}$ where $\bar{c}$ is the server control. Both mitigations can wrap SAC, CQL, or OptiDICE updates before aggregation.
+
+\section{Stationary-Ratio Alignment}
+
+\subsection{Gradient Alignment Lemma}
+\textbf{Lemma.} Suppose each client $k$ computes a gradient estimate $g_k = \E_{D_k}[h(s,a)]$ for some shared integrand $h$. If each client reweights samples by $w^{\star}(s,a) = d^{\pi}(s,a)/d_{D_k}(s,a)$ and clips $\log w^{\star}$ uniformly, the reweighted gradient
+\begin{equation}
+    \tilde{g}_k = \E_{D_k}\big[w^{\star}(s,a) h(s,a)\big]
+\end{equation}
+satisfies $\tilde{g}_k = \E_{d^{\pi}}[h(s,a)]$ for all $k$, hence $\tilde{g}_k = \tilde{g}_j$ for every pair $k,j$.
+
+\emph{Proof.}
+\begin{align}
+    \E_{D_k}\big[w^{\star}(s,a) h(s,a)\big]
+    &= \sum_{s,a} d_{D_k}(s,a) \frac{d^{\pi}(s,a)}{d_{D_k}(s,a)} h(s,a) \\
+    &= \sum_{s,a} d^{\pi}(s,a) h(s,a) = \E_{d^{\pi}}[h(s,a)].
+\end{align}
+Clipping introduces bounded bias $O(e^{-c})$ when the clip threshold is $c$, but preserves alignment up to that bias. \qed
+
+This property rationalizes why OptiDICE removes client heterogeneity: gradients before aggregation already point toward the same target.
+
+\section{Client Weighting via ESS}
+
+Ratio-aware aggregation uses the effective sample size (ESS) of $w^{\star}$:
+\begin{equation}
+    \text{ESS}_k = \frac{(\E[w^{\star}])^2}{\E[(w^{\star})^2]}.
+\end{equation}
+For Monte Carlo estimators, ESS approximates the number of i.i.d.~samples that would provide equivalent variance. Clients with high variance ratios contribute less to aggregation.
+
+\textbf{Proposition.} Let $\hat{g}_k = \frac{1}{n_k} \sum_{i=1}^{n_k} w_i h_i$ be client $k$'s estimator with $w_i=w^{\star}(s_i,a_i)$. If $\Var(\hat{g}_k) \propto \frac{1}{\text{ESS}_k}$, weighting clients by $\mu_k \propto \text{ESS}_k$ minimizes the variance of the aggregated estimator subject to $\sum \mu_k = 1$.
+
+\emph{Proof.} The optimal weights for combining unbiased estimates minimize $\sum_k \mu_k^2 \Var(\hat{g}_k)$, yielding $\mu_k \propto 1/\Var(\hat{g}_k) \propto \text{ESS}_k$. \qed
+
+\section{Communication Rounds-to-Target}
+
+Let $F^{(t)}$ denote the D4RL-normalized score after round $t$. Define the stopping time
+\begin{equation}
+    T(\tau) = \inf\{ t \ge 0 \mid F^{(t)} \ge \tau \}.
+\end{equation}
+By aligning gradients, OptiDICE reduces the per-round variance, tightening concentration bounds. Using Azuma-Hoeffding on the martingale difference sequence of score increments $\Delta_t = F^{(t)} - \E[F^{(t)}|F^{(t-1)}]$, we obtain
+\begin{equation}
+    \Prob\left( T(\tau) - \E[T(\tau)] \ge \epsilon \right) \le \exp\left(-\frac{2 \epsilon^2}{\sum_{t=1}^{T(\tau)} c_t^2}\right),
+\end{equation}
+where $c_t$ bounds $\Delta_t$. Ratio clipping reduces $c_t$ by constraining the per-round update magnitude.
+
+\section{Non-IID Regimes}
+
+\subsection{Return Quantiles}
+Trajectories are sorted by undiscounted returns $\hat{R}(\tau)$ and sliced into quantiles. If $Q_k$ is the set assigned to client $k$, then
+\begin{equation}
+    \E_{D_k}[r] \approx \frac{1}{|Q_k|} \sum_{\tau \in Q_k} \hat{R}(\tau),
+\end{equation}
+which creates label-shift-like mismatch and stresses conservative baselines.
+
+\subsection{State Clusters}
+Clustering a frozen embedding $\phi(s)$ via k-means induces covariate shift. Clients receive disjoint cluster ids $C_k$, yielding marginal distributions $d_{D_k}(s) \propto \sum_{c \in C_k} \Pr(s|c)$.
+
+\subsection{Support Skew}
+Action norms (or BC likelihoods) thresholded into top/bottom fractions produce support mismatch. This regime specifically challenges ratio estimation because $w^{\star}$ must extrapolate beyond observed supports; log-clipping is essential to keep $\Var(w^{\star})$ finite.
+
+\section{Implementation Notes linked to Math}
+
+\begin{itemize}
+    \item \textbf{Log-Clipping.} Bounding $\log w^{\star}$ by $[-c, c]$ ensures $w^{\star} \le e^{c}$ so $\E[(w^{\star})^2] \le e^{2c}$, directly stabilizing ESS estimates.
+    \item \textbf{Proximal Control.} FedProx introduces $\frac{\beta}{2} \|\theta_k - \theta^{\text{global}}\|^2$ in each client's objective, yielding the proximal gradient update
+    \begin{equation}
+        \theta_k^{(t+1)} = \theta_k^{(t)} - \eta (\nabla f_k(\theta_k^{(t)}) + \beta(\theta_k^{(t)} - \theta^{(t)})),
+    \end{equation}
+    which keeps local iterates within a ball around the broadcast parameters.
+    \item \textbf{Gradient Cosine Similarity.} The pairwise cosine matrix $C_{ij} = \frac{\langle g_i, g_j\rangle}{\|g_i\|\|g_j\|}$ quantifies alignment predicted by the lemma above. Higher entries imply more effective FedAvg steps.
+\end{itemize}
+
+\section{Open Questions}
+
+\begin{enumerate}
+    \item \textbf{Client-Local Optimizers.} How does preserving Adam moments per client affect the convergence proof above? Initial analysis suggests ratio alignment still holds because it acts at the sample weighting level, orthogonal to optimizer state.
+    \item \textbf{Variance-Aware Scheduling.} Can we schedule communication rounds adaptively based on ESS estimates, e.g., stopping early when $\sum_k \text{ESS}_k$ stabilizes?
+    \item \textbf{Secure Aggregation.} The ratio-aware weights require transmitting $\text{ESS}_k$; a DP-secure variant would add Gaussian noise, whose effect on the variance reducton lemma remains to be quantified.
+\end{enumerate}
+
+\section{Conclusion}
+
+OptiDICE-equipped federated offline RL leverages stationary distribution correction to convert client-specific gradient estimates into shared, target-aligned updates. Non-IID stressors manifest as variance inflation in $w^{\star}$; ESS-based weighting and log clipping compensate for this effect. The mathematical arguments above justify the engineering choices implemented in the repository and outline directions for deeper theoretical guarantees.
+
+\end{document}

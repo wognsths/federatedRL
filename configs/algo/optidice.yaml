@@ -1,0 +1,12 @@
+name: optidice
+dual_hidden_sizes: [256, 256]
+actor_hidden_sizes: [256, 256]
+behavior_hidden_sizes: [128, 128]
+critic_lr: 0.0003
+actor_lr: 0.0003
+behavior_lr: 0.0003
+alpha: 1.0
+clip_value: 20.0
+entropy_reg: 0.0
+ema_decay: 0.995
+gamma: 0.99

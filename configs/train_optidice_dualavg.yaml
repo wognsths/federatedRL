@@ -1,0 +1,18 @@
+algo: optidice
+fed: fedavg
+data: halfcheetah_medium_replay
+seed: 0
+rounds: 10
+clients: 5
+client_fraction: 1.0
+split: quantile
+local_steps:
+  critic: 200
+  actor: 200
+batch_size: 256
+replay_buffer_size: 200000
+log_interval: 1
+validate_interval: 5
+device: auto
+log_dir: outputs
+resume: false

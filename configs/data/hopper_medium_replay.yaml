@@ -1,0 +1,5 @@
+task: hopper-medium-replay-v2
+dataset_dir: ./datasets
+reward_scale: 1.0
+normalize_rewards: false
+normalize_states: true

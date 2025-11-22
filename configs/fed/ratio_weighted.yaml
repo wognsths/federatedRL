@@ -1,0 +1,6 @@
+name: ratio_weighted
+strategy: ess
+stability_eps: 1.0e-6
+normalize_lambda: false
+use_ratio_weights: true
+dual_only_weights: false

@@ -1,0 +1,18 @@
+algo: sac
+fed: fedavg
+data: halfcheetah_medium_replay
+seed: 0
+rounds: 1
+clients: 3
+client_fraction: 1.0
+split: quantile
+local_steps:
+  critic: 2
+  actor: 2
+batch_size: 64
+replay_buffer_size: 2000
+log_interval: 1
+validate_interval: 1
+device: cpu
+log_dir: outputs
+resume: false

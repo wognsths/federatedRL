@@ -1,0 +1,7 @@
+name: ratio_buffer
+strategy: ess
+stability_eps: 1.0e-6
+reference_size: 1024
+normalize_lambda: false
+use_ratio_weights: true
+dual_only_weights: false

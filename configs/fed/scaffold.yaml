@@ -1,0 +1,3 @@
+name: scaffold
+client_weighting: size
+control_lr: 1.0

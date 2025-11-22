@@ -1,0 +1,4 @@
+name: fedavg
+client_weighting: size
+secure_aggregation: false
+compression: none
