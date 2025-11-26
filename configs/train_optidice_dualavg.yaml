@@ -2,7 +2,9 @@ algo: optidice
 fed: fedavg
 data: halfcheetah_medium_replay
 seed: 0
-rounds: 10
+rounds: 100
+eval_interval: 10
+eval_episodes: 5
 clients: 5
 client_fraction: 1.0
 split: quantile

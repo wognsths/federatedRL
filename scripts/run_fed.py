@@ -17,7 +17,7 @@ from fed.aggregator.fedprox import FedProxAggregator
 from fed.aggregator.ratio_weighted import RatioWeightedAggregator
 from fed.aggregator.buffer_ratio import BufferRatioAggregator
 from fed.client import FederatedClient
-from fed.server import FederatedServer, ServerConfig
+from fed.server import EvaluationConfig, FederatedServer, ServerConfig
 from fed.types import ClientConfig
 from rl.base import OfflineAgent
 from rl.optidice.agent import OptiDICEAgent, OptiDICEConfig
@@ -103,6 +103,7 @@ def main(
     algo: str = typer.Option("", help="Override algorithm name (sac|optidice)."),
     fed: str = typer.Option("", help="Override federation strategy."),
     data: str = typer.Option("", help="Override dataset config name."),
+    log_progress: bool = typer.Option(True, help="Stream round metrics to stdout while training."),
 ) -> None:
     cfg = OmegaConf.load(config)
     algo_name = algo or cfg.algo
@@ -111,6 +112,10 @@ def main(
 
     algo_cfg = _load_yaml(Path("configs/algo") / f"{algo_name}.yaml")
     fed_cfg = _load_yaml(Path("configs/fed") / f"{fed_name}.yaml")
+    fed_overrides = OmegaConf.select(cfg, "fed_overrides")
+    if fed_overrides:
+        overrides = OmegaConf.to_container(fed_overrides, resolve=True)  # type: ignore[arg-type]
+        fed_cfg.update(overrides)  # type: ignore[arg-type]
     data_cfg = _load_yaml(Path("configs/data") / f"{data_name}.yaml")
 
     device = _device(cfg.device)
@@ -144,6 +149,24 @@ def main(
     if ref_size and ref_size > 0:
         reference_batch = build_reference_batch(dataset, ref_size, cfg.seed, device)
 
+    eval_interval = int(OmegaConf.select(cfg, "eval_interval") or 0)
+    eval_episodes = int(OmegaConf.select(cfg, "eval_episodes") or 0)
+    obs_normalizer = getattr(dataset, "obs_normalizer", None)
+    normalizer_tensors = None
+    if obs_normalizer is not None:
+        normalizer_tensors = {
+            "mean": torch.as_tensor(obs_normalizer["mean"], device=device, dtype=torch.float32),
+            "std": torch.as_tensor(obs_normalizer["std"], device=device, dtype=torch.float32),
+        }
+    evaluation = None
+    if eval_interval > 0 and eval_episodes > 0:
+        evaluation = EvaluationConfig(
+            task=data_cfg["task"],
+            interval=eval_interval,
+            episodes=eval_episodes,
+            obs_normalizer=normalizer_tensors,
+        )
+
     server = FederatedServer(
         agent_builder=agent_factory,
         clients=clients,
@@ -151,9 +174,11 @@ def main(
         config=ServerConfig(rounds=cfg.rounds, client_fraction=cfg.client_fraction, seed=cfg.seed),
         device=device,
         reference_batch=reference_batch,
+        evaluation=evaluation,
     )
 
-    history = server.run()
+    log_fn = typer.echo if log_progress else None
+    history = server.run(log_fn=log_fn)
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = Path(cfg.log_dir) / f"fed_{algo_name}_{fed_name}_{cfg.split}_{timestamp}"

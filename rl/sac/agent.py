@@ -41,7 +41,8 @@ class SACAgent(OfflineAgent):
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=config.actor_lr)
         critic_params = list(self.critic1.parameters()) + list(self.critic2.parameters())
         self.critic_optim = torch.optim.Adam(critic_params, lr=config.critic_lr)
-        self.log_alpha = torch.tensor(float(config.init_temperature)).log().detach().clone().requires_grad_(True).to(device)
+        init_temp = torch.tensor(float(config.init_temperature), device=device)
+        self.log_alpha = torch.nn.Parameter(init_temp.log())
         self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=config.alpha_lr)
         self.target_entropy = -float(act_dim) * config.target_entropy_scale
 

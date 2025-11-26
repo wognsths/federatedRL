@@ -137,6 +137,8 @@ def load_d4rl_dataset(
     next_obs = data["next_observations"].astype(np.float32)
     terminals = data["terminals"].astype(np.float32)
 
+    obs_mean = None
+    obs_std = None
     if normalize_states:
         obs_mean = obs.mean(axis=0, keepdims=True)
         obs_std = obs.std(axis=0, keepdims=True) + 1e-6
@@ -150,7 +152,7 @@ def load_d4rl_dataset(
 
     trajectories, trajectory_ids = _build_trajectories(rew, terminals)
 
-    return OfflineDataset(
+    dataset = OfflineDataset(
         observations=obs,
         actions=acts,
         rewards=rew,
@@ -159,6 +161,14 @@ def load_d4rl_dataset(
         trajectory_ids=trajectory_ids,
         trajectories=trajectories,
     )
+    if obs_mean is not None and obs_std is not None:
+        dataset.obs_normalizer = {"mean": obs_mean.astype(np.float32), "std": obs_std.astype(np.float32)}
+    else:
+        dataset.obs_normalizer = None
+    dataset.reward_scale = reward_scale
+    dataset.normalize_rewards = normalize_rewards
+    dataset.normalize_states = normalize_states
+    return dataset
 
 
 def _load_from_d4rl(task: str) -> Dict[str, np.ndarray]:  # pragma: no cover - requires MuJoCo

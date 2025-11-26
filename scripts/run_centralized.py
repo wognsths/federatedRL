@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 from data.d4rl_loader import load_d4rl_dataset
 from data.samplers import BatchSampler
 from rl.base import OfflineAgent
+from rl.evaluation import evaluate_policy
 from rl.optidice.agent import OptiDICEAgent, OptiDICEConfig
 from rl.sac.agent import SACAgent, SACAgentConfig
 
@@ -87,12 +88,36 @@ def main(
     agent = agent_factory()
 
     sampler = BatchSampler(dataset, seed=cfg.seed)
-    total_steps = cfg.rounds * max(cfg.local_steps.values())
+    obs_normalizer = getattr(dataset, "obs_normalizer", None)
+    normalizer_tensors = None
+    if obs_normalizer is not None:
+        normalizer_tensors = {
+            "mean": torch.as_tensor(obs_normalizer["mean"], device=device, dtype=torch.float32),
+            "std": torch.as_tensor(obs_normalizer["std"], device=device, dtype=torch.float32),
+        }
+    eval_interval = int(OmegaConf.select(cfg, "eval_interval") or 0)
+    eval_episodes = int(OmegaConf.select(cfg, "eval_episodes") or 0)
+    updates_per_round = max(cfg.local_steps.values())
+    total_steps = cfg.rounds * updates_per_round
+    eval_every_steps = eval_interval * updates_per_round if eval_interval > 0 and eval_episodes > 0 else 0
     history = []
     for step in range(total_steps):
         batch = sampler.sample(cfg.batch_size, device)
         metrics = agent.update(batch, step)
         metrics["step"] = float(step)
+        if eval_every_steps and (step + 1) % eval_every_steps == 0:
+            eval_stats = evaluate_policy(
+                agent,
+                data_cfg["task"],
+                device,
+                eval_episodes,
+                obs_normalizer=normalizer_tensors,
+            )
+            metrics.update(eval_stats)
+            if eval_stats:
+                summary = ", ".join(f"{key}={value:.2f}" for key, value in sorted(eval_stats.items()) if key.startswith("eval_"))
+                if summary:
+                    typer.echo(f"[Centralized] step {step + 1}: {summary}")
         history.append(metrics)
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")

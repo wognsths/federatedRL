@@ -2,10 +2,12 @@ algo: sac
 fed: fedavg
 data: halfcheetah_medium_replay
 seed: 0
-rounds: 10
+rounds: 100
 clients: 5
 client_fraction: 1.0
 split: quantile
+eval_interval: 10
+eval_episodes: 5
 local_steps:
   critic: 200
   actor: 200

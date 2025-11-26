@@ -2,7 +2,9 @@ algo: optidice
 fed: ratio_weighted
 data: halfcheetah_medium_replay
 seed: 0
-rounds: 10
+rounds: 100
+eval_interval: 10
+eval_episodes: 5
 clients: 5
 client_fraction: 1.0
 split: quantile
@@ -16,8 +18,7 @@ validate_interval: 5
 device: auto
 log_dir: outputs
 resume: false
-# Fed config overrides:
-fed:
+fed_overrides:
   normalize_lambda: true
   use_ratio_weights: true
   dual_only_weights: true

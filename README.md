@@ -17,7 +17,7 @@ pip install -r requirements.txt
 If MuJoCo/D4RL are unavailable, the loader automatically falls back to synthetic Gaussian datasets so the pipeline remains testable.
 
 ## Running Experiments
-Federated training (defaults to HalfCheetah medium-replay, quantile split, FedAvg + SAC):
+Federated training (defaults to HalfCheetah medium-replay, quantile split, FedAvg + SAC). Every config that sets `eval_interval` / `eval_episodes` now triggers online rollouts, so round logs include raw returns and D4RL-normalized scores:
 ```bash
 python scripts/run_fed.py --config configs/train.yaml
 ```
@@ -30,6 +30,20 @@ Centralized oracle baselines:
 ```bash
 python scripts/run_centralized.py --algo optidice --data halfcheetah_medium_replay
 ```
+
+### Recommended workflow (YAML presets)
+1. **Centralized SAC oracle** — `python scripts/run_centralized.py --config configs/train_sac_fedavg.yaml`  
+   Uses the same `eval_interval` / `eval_episodes` settings so reward and normalized score curves match the federated runs.
+2. **FedAvg SAC baseline** — `python scripts/run_fed.py --config configs/train_sac_fedavg.yaml`  
+   100 rounds, all 5 clients each round, reward validation every 10 rounds.
+3. **Proposed Fed+OptiDICE variants** — run the configs described in `docs/PLAN.md`:
+   - `configs/train_optidice_dualavg.yaml` (FedAvg aggregation of dual + actor)
+   - `configs/train_optidice_lambda_norm.yaml` (`fed_overrides` flips on λ-normalization)
+   - `configs/train_optidice_dual_weighted.yaml` (λ-normalization + dual-only ratio weights)
+   - `configs/train_optidice_stable.yaml` (step 3 with the higher-α “stable” OptiDICE config)
+   - `configs/train_optidice_ratio_buffer.yaml` (ratio-buffer aggregation experiment)
+
+Each YAML keeps `rounds: 100` and logs evaluation summaries every 10 rounds. `fed_overrides` keys merge into the base federation YAML (e.g., `configs/fed/ratio_weighted.yaml`) so you can tweak aggregation tricks without duplicating entire configs.
 
 ### Federated OptiDICE — how it works
 - **Broadcast**: server sends the current dual parameters `(ν, λ)` and actor/behavior nets to all selected clients.
