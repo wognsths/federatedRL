@@ -172,7 +172,10 @@ def load_d4rl_dataset(
 
 
 def _load_from_d4rl(task: str) -> Dict[str, np.ndarray]:  # pragma: no cover - requires MuJoCo
-    import gymnasium as gym  # type: ignore
+    try:
+        import gym  # type: ignore
+    except ImportError:  # pragma: no cover - fallback to gymnasium only if necessary
+        import gymnasium as gym  # type: ignore
     import d4rl  # type: ignore  # noqa: F401 - registers environments
 
     env = gym.make(task)
