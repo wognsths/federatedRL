@@ -2,7 +2,7 @@ algo: optidice
 fed: ratio_buffer
 data: halfcheetah_medium_replay
 seed: 0
-rounds: 100
+rounds: 400
 eval_interval: 10
 eval_episodes: 5
 clients: 5

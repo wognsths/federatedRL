@@ -2,7 +2,7 @@ algo: sac
 fed: fedavg
 data: halfcheetah_medium_replay
 seed: 0
-rounds: 100
+rounds: 1000
 clients: 5
 client_fraction: 1.0
 split: quantile

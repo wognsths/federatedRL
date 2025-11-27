@@ -1,13 +1,13 @@
-algo: optidice
-fed: ratio_weighted
+algo: optidice_stable
+fed: hybrid_ratio_fedavg
 data: halfcheetah_medium_replay
-seed: 0
-rounds: 400
-eval_interval: 10
-eval_episodes: 5
+seed: 123
+rounds: 200
 clients: 5
 client_fraction: 1.0
 split: quantile
+eval_interval: 10
+eval_episodes: 10
 local_steps:
   critic: 200
   actor: 200
@@ -19,6 +19,5 @@ device: auto
 log_dir: outputs
 resume: false
 fed_overrides:
-  normalize_lambda: true
-  use_ratio_weights: true
-  dual_only_weights: true
+  warmdown_rounds: 100
+  warmdown_start: 0
