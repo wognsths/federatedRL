@@ -4,7 +4,7 @@ omegaconf>=2.3.0
 torch>=2.1
 numpy>=1.24
 pandas>=2.0
-gymnasium>=0.29
+gym==0.24.1
 mujoco>=2.3.5
 mujoco-py==2.1.2.14
 robosuite>=1.4.1
@@ -14,4 +14,4 @@ matplotlib>=3.8
 seaborn>=0.13
 typer>=0.9
 rich>=13.7
-d4rl @ git+https://github.com/Farama-Foundation/D4RL@master
+d4rl==1.1

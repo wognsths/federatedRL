@@ -9,6 +9,11 @@ import torch
 import typer
 from omegaconf import OmegaConf
 
+from infra.mujoco_setup import ensure_mujoco_env
+from infra.eval_logging import append_eval_entry
+
+ensure_mujoco_env()
+
 from data.d4rl_loader import load_d4rl_dataset
 from data.samplers import BatchSampler
 from rl.base import OfflineAgent
@@ -100,6 +105,11 @@ def main(
     updates_per_round = max(cfg.local_steps.values())
     total_steps = cfg.rounds * updates_per_round
     eval_every_steps = eval_interval * updates_per_round if eval_interval > 0 and eval_episodes > 0 else 0
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = Path(cfg.log_dir) / f"centralized_{algo_name}_{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    eval_log_path = run_dir / "evaluation.log"
+
     history = []
     for step in range(total_steps):
         batch = sampler.sample(cfg.batch_size, device)
@@ -118,11 +128,9 @@ def main(
                 summary = ", ".join(f"{key}={value:.2f}" for key, value in sorted(eval_stats.items()) if key.startswith("eval_"))
                 if summary:
                     typer.echo(f"[Centralized] step {step + 1}: {summary}")
+                append_eval_entry(eval_log_path, f"[Step {step + 1}]", eval_stats)
         history.append(metrics)
 
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run_dir = Path(cfg.log_dir) / f"centralized_{algo_name}_{timestamp}"
-    run_dir.mkdir(parents=True, exist_ok=True)
     with open(run_dir / "metrics.json", "w", encoding="utf-8") as fp:
         json.dump(history, fp, indent=2)
     typer.echo(f"Saved centralized metrics to {run_dir}/metrics.json")

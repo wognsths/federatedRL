@@ -9,6 +9,11 @@ import torch
 import typer
 from omegaconf import OmegaConf
 
+from infra.mujoco_setup import ensure_mujoco_env
+from infra.eval_logging import append_eval_entry
+
+ensure_mujoco_env()
+
 from data.d4rl_loader import load_d4rl_dataset
 from data.reference import build_reference_batch
 from data.splitting import split_dataset
@@ -16,6 +21,7 @@ from fed.aggregator.fedavg import FedAvgAggregator
 from fed.aggregator.fedprox import FedProxAggregator
 from fed.aggregator.ratio_weighted import RatioWeightedAggregator
 from fed.aggregator.buffer_ratio import BufferRatioAggregator
+from fed.aggregator.hybrid_ratio_fedavg import HybridRatioFedAvgAggregator
 from fed.client import FederatedClient
 from fed.server import EvaluationConfig, FederatedServer, ServerConfig
 from fed.types import ClientConfig
@@ -50,7 +56,7 @@ def _build_agent_factory(algo_name: str, algo_cfg: Dict, obs_dim: int, act_dim: 
             target_entropy_scale=algo_cfg["target_entropy_scale"],
         )
         return lambda: SACAgent(obs_dim, act_dim, cfg, device)
-    if algo_name == "optidice":
+    if algo_name in {"optidice", "optidice_stable"}:
         cfg = OptiDICEConfig(
             dual_hidden_sizes=tuple(algo_cfg["dual_hidden_sizes"]),
             actor_hidden_sizes=tuple(algo_cfg["actor_hidden_sizes"]),
@@ -94,6 +100,18 @@ def _build_aggregator(fed_name: str, fed_cfg: Dict, algo_cfg: Dict):
             use_ratio_weights=use_ratio_weights,
             dual_only_weights=dual_only_weights,
         )
+    if fed_name == "hybrid_ratio_fedavg":
+        warmdown_rounds = fed_cfg.get("warmdown_rounds", 200)
+        start_round = fed_cfg.get("warmdown_start", 0)
+        ratio_config = {
+            "strategy": fed_cfg.get("strategy", "ess"),
+            "stability_eps": fed_cfg.get("stability_eps", 1e-6),
+            "normalize_lambda": normalize_lambda,
+            "dual_alpha": dual_alpha,
+            "use_ratio_weights": use_ratio_weights,
+            "dual_only_weights": dual_only_weights,
+        }
+        return HybridRatioFedAvgAggregator(ratio_config, warmdown_rounds=warmdown_rounds, start_round=start_round)
     raise KeyError(f"Unsupported fed method '{fed_name}'")
 
 
@@ -177,12 +195,19 @@ def main(
         evaluation=evaluation,
     )
 
-    log_fn = typer.echo if log_progress else None
-    history = server.run(log_fn=log_fn)
-
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = Path(cfg.log_dir) / f"fed_{algo_name}_{fed_name}_{cfg.split}_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
+    eval_log_path = run_dir / "evaluation.log"
+
+    log_fn = typer.echo if log_progress else None
+    history = server.run(
+        log_fn=log_fn,
+        eval_hook=lambda round_idx, stats: append_eval_entry(
+            eval_log_path, f"[Round {round_idx + 1}]", stats
+        ),
+    )
+
     with open(run_dir / "metrics.json", "w", encoding="utf-8") as fp:
         json.dump(history, fp, indent=2)
     typer.echo(f"Saved metrics to {run_dir}/metrics.json")

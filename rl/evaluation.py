@@ -24,10 +24,13 @@ def evaluate_policy(
         return {}
 
     try:
-        import gymnasium as gym  # type: ignore
-    except Exception as exc:  # pragma: no cover - requires MuJoCo
-        LOGGER.warning("Skipping evaluation: gymnasium import failed (%s)", exc)
-        return {}
+        import gym  # type: ignore
+    except Exception:
+        try:
+            import gymnasium as gym  # type: ignore
+        except Exception as exc:  # pragma: no cover - requires MuJoCo
+            LOGGER.warning("Skipping evaluation: gym import failed (%s)", exc)
+            return {}
 
     try:  # pragma: no cover - optional dependency when MuJoCo installed
         import d4rl  # type: ignore  # noqa: F401
@@ -61,7 +64,11 @@ def evaluate_policy(
     try:
         with torch.no_grad():
             for _ in range(episodes):
-                obs, _ = env.reset()
+                reset_result = env.reset()
+                if isinstance(reset_result, tuple):
+                    obs = reset_result[0]
+                else:
+                    obs = reset_result
                 done = False
                 total_return = 0.0
                 while not done:
@@ -70,9 +77,13 @@ def evaluate_policy(
                         obs_tensor = (obs_tensor - mean) / std
                     action, _ = actor.sample(obs_tensor.unsqueeze(0))
                     action_np = action.squeeze(0).clamp(-1.0, 1.0).cpu().numpy()
-                    obs, reward, terminated, truncated, _ = env.step(action_np)
+                    step_result = env.step(action_np)
+                    if len(step_result) == 4:
+                        obs, reward, done, _ = step_result
+                    else:
+                        obs, reward, terminated, truncated, _ = step_result
+                        done = bool(terminated or truncated)
                     total_return += float(reward)
-                    done = bool(terminated or truncated)
                 returns.append(total_return)
     except Exception as exc:  # pragma: no cover - runtime rollout issues
         LOGGER.warning("Evaluation rollout failed: %s", exc)

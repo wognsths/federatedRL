@@ -15,6 +15,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 If MuJoCo/D4RL are unavailable, the loader automatically falls back to synthetic Gaussian datasets so the pipeline remains testable.
+The repo pins `gym==0.24.1` + `d4rl==1.1` (the last Gym-compatible release) and every CLI entry point calls `infra.mujoco_setup.ensure_mujoco_env()` so `/root/.mujoco/mujoco210/bin` is appended to `LD_LIBRARY_PATH` before trying to import `mujoco_py`.
 
 ## Running Experiments
 Federated training (defaults to HalfCheetah medium-replay, quantile split, FedAvg + SAC). Every config that sets `eval_interval` / `eval_episodes` now triggers online rollouts, so round logs include raw returns and D4RL-normalized scores:
@@ -42,6 +43,7 @@ python scripts/run_centralized.py --algo optidice --data halfcheetah_medium_repl
    - `configs/train_optidice_dual_weighted.yaml` (λ-normalization + dual-only ratio weights)
    - `configs/train_optidice_stable.yaml` (step 3 with the higher-α “stable” OptiDICE config)
    - `configs/train_optidice_ratio_buffer.yaml` (ratio-buffer aggregation experiment)
+   - `configs/train_optidice_hybrid.yaml` (OptiDICE warmdown from ratio-weighted to FedAvg)
 
 Each YAML keeps `rounds: 100` and logs evaluation summaries every 10 rounds. `fed_overrides` keys merge into the base federation YAML (e.g., `configs/fed/ratio_weighted.yaml`) so you can tweak aggregation tricks without duplicating entire configs.
 
