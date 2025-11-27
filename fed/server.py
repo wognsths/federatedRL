@@ -51,7 +51,11 @@ class FederatedServer:
         self.reference_batch = reference_batch
         self.evaluation = evaluation
 
-    def run(self, log_fn: Optional[Callable[[str], None]] = None) -> List[Dict[str, float]]:
+    def run(
+        self,
+        log_fn: Optional[Callable[[str], None]] = None,
+        eval_hook: Optional[Callable[[int, Dict[str, float]], None]] = None,
+    ) -> List[Dict[str, float]]:
         for round_idx in range(self.config.rounds):
             selected = self._select_clients()
             if log_fn is not None:
@@ -78,6 +82,8 @@ class FederatedServer:
             eval_stats = self._maybe_evaluate(round_idx)
             if eval_stats:
                 round_metrics.update(eval_stats)
+                if eval_hook is not None:
+                    eval_hook(round_idx, eval_stats)
                 if log_fn is not None:
                     eval_msg = ", ".join(f"{key}={value:.2f}" for key, value in sorted(eval_stats.items()) if key.startswith("eval_"))
                     if eval_msg:
