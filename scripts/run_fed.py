@@ -111,7 +111,13 @@ def _build_aggregator(fed_name: str, fed_cfg: Dict, algo_cfg: Dict):
             "use_ratio_weights": use_ratio_weights,
             "dual_only_weights": dual_only_weights,
         }
-        return HybridRatioFedAvgAggregator(ratio_config, warmdown_rounds=warmdown_rounds, start_round=start_round)
+        min_ratio_weight = float(fed_cfg.get("min_ratio_weight", 0.0))
+        return HybridRatioFedAvgAggregator(
+            ratio_config,
+            warmdown_rounds=warmdown_rounds,
+            start_round=start_round,
+            min_ratio_weight=min_ratio_weight,
+        )
     raise KeyError(f"Unsupported fed method '{fed_name}'")
 
 

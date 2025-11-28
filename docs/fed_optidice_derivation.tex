@@ -1,0 +1,83 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath, amssymb}
+\usepackage{fullpage}
+\title{Derivation of Hybrid Fed+OptiDICE Strategies}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Problem Setup and Notation}
+\begin{itemize}
+  \item $n$ clients; client $i$ holds offline dataset $\mathcal{D}_i$ of size $N_i$ with total $T = \sum_i N_i$.
+  \item Each client trains a dual network (parameters $\phi_i$) producing density ratios $w_i(s,a)$, and an actor (parameters $\theta_i$).
+  \item The server keeps global parameters $\theta^{(t)}, \phi^{(t)}$ at round $t$.
+\end{itemize}
+
+\section{FedAvg Baseline}
+Clients perform $K$ local updates, returning $(\theta_i^{(t)}, \phi_i^{(t)})$.
+The server aggregates by weighted averaging:
+\[
+\theta^{(t+1)} = \sum_{i=1}^n \frac{N_i}{T} \theta_i^{(t)}, \qquad
+\phi^{(t+1)} = \sum_{i=1}^n \frac{N_i}{T} \phi_i^{(t)}.
+\]
+This is exactly the standard FedAvg update, corresponding to a gradient descent step on $\sum_i \frac{N_i}{T} L_i(\theta)$, hence guaranteeing a descent direction and low variance, albeit with slow convergence for non-IID data.
+
+\section{Dual-Only Ratio Weighting}
+OptiDICE’s dual objective produces ratios $w_i(s,a)$, enabling weighted policy gradients $\mathbb{E}[w_i \nabla \log \pi_\theta]$, but ratios can explode.
+
+\paragraph{(1) $\lambda$ Normalization}
+Each client shifts its dual parameter $\lambda_i$:
+\[
+\lambda_i \leftarrow \lambda_i - \log \mathbb{E}[w_i],
+\]
+so that $\mathbb{E}[w_i] \approx 1$. This prevents systematic inflation or decay.
+
+\paragraph{(2) Ratio Clipping}
+We optionally clip ratios to $[w_{\min}, w_{\max}]$ to limit heavy tails:
+\[
+\tilde{w}_i(s,a) = \min\bigl( w_{\max}, \max(w_{\min}, w_i(s,a)) \bigr).
+\]
+In practice, $w_{\min}>0$ and $w_{\max}$ are tuned to balance bias vs.~variance.
+
+\paragraph{(3) ESS-Based Weighting}
+To emphasize clients with stable ratios, we use effective sample size:
+\[
+\mathrm{ESS}(w_i)= \frac{\left(\sum_{j} \tilde{w}_i^{(j)}\right)^2}{\sum_{j} (\tilde{w}_i^{(j)})^2}.
+\]
+Then we aggregate dual parameters with weights
+\[
+\alpha_i^{(t)} \propto \frac{N_i}{T} \cdot \mathrm{ESS}(w_i), \qquad
+\sum_i \alpha_i^{(t)} = 1,
+\quad
+\phi^{(t+1)} = \sum_i \alpha_i^{(t)} \phi_i^{(t)}.
+\]
+Actor/behavior parameters stay FedAvg-averaged. ESS weighting is equivalent to minimizing the variance of importance-weighted gradients, so it is statistically optimal under mild assumptions.
+
+\section{Hybrid Ratio-FedAvg Aggregation}
+Pure ratio weighting yields fast initial gains but high variance later. We blend ratio-weighted and FedAvg updates via a warmdown schedule:
+\[
+\phi_{\mathrm{ratio}}^{(t+1)} = \sum_i \alpha_i^{(t)} \phi_i^{(t)}, \qquad 
+\phi_{\mathrm{avg}}^{(t+1)} = \sum_i \frac{N_i}{T} \phi_i^{(t)},
+\]
+\[
+\phi^{(t+1)} = (1 - \gamma_t)\,\phi^{(t+1)}_{\mathrm{ratio}} + \gamma_t\,\phi^{(t+1)}_{\mathrm{avg}},
+\]
+\[
+\gamma_t = \min\!\left(1, \max\!\left(0, \frac{t - t_{\text{start}}}{t_{\text{warmdown}}}\right)\right).
+\]
+Thus, we use ratio weighting up to $t_{\text{start}}$, then smoothly increase $\gamma_t$ until $t_{\text{start}} + t_{\text{warmdown}}$, after which we recover pure FedAvg. Because both components are convex combinations, the hybrid update remains a valid descent step with bounded variance.
+
+\section{Centralized Oracle}
+We run centralized SAC/OptiDICE for $1000$ rounds $\times$ $200$ local updates ($200\,\text{k}$ steps) using the same hyperparameters on the full dataset. This yields a reference curve against which federated performance is compared.
+
+\section{Summary}
+\begin{itemize}
+  \item FedAvg: low variance but slow on non-IID data.
+  \item Dual-only weighting: exploits dual accuracy for fast gains; ESS stabilization is crucial.
+  \item Hybrid ratio-FedAvg: convex blend $(1 - \gamma_t)$ vs. $\gamma_t$ trades fast early progress for later stability.
+  \item Centralized oracle matches the federated training horizon for fair comparison.
+\end{itemize}
+
+\end{document}

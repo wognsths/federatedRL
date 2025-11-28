@@ -17,10 +17,13 @@ run() {
 }
 
 # run python -m scripts.run_centralized --config configs/train_sac_fedavg.yaml
-run python -m scripts.run_fed --config configs/train_sac_fedavg.yaml
+# run python -m scripts.run_fed --config configs/train_sac_fedavg.yaml
 
 # run python -m scripts.run_fed --config configs/train_optidice_dualavg.yaml
 # run python -m scripts.run_fed --config configs/train_optidice_lambda_norm.yaml
 # run python -m scripts.run_fed --config configs/train_optidice_dual_weighted.yaml
-run python -m scripts.run_fed --config configs/train_optidice_hybrid.yaml
+run python -m scripts.run_fed --config configs/train_optidice_hybrid4.yaml
+# run python -m scripts.run_fed --config configs/train_optidice_hybrid2.yaml
+run python -m scripts.run_fed --config configs/train_optidice_hybrid3.yaml
 # run python -m scripts.run_fed --config configs/train_optidice_ratio_buffer.yaml
+# run python -m scripts.run_fed --config configs/train_optidice_hybrid_me_mix.yaml

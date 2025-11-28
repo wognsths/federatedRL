@@ -38,12 +38,13 @@ python scripts/run_centralized.py --algo optidice --data halfcheetah_medium_repl
 2. **FedAvg SAC baseline** — `python scripts/run_fed.py --config configs/train_sac_fedavg.yaml`  
    100 rounds, all 5 clients each round, reward validation every 10 rounds.
 3. **Proposed Fed+OptiDICE variants** — run the configs described in `docs/PLAN.md`:
-   - `configs/train_optidice_dualavg.yaml` (FedAvg aggregation of dual + actor)
-   - `configs/train_optidice_lambda_norm.yaml` (`fed_overrides` flips on λ-normalization)
-   - `configs/train_optidice_dual_weighted.yaml` (λ-normalization + dual-only ratio weights)
-   - `configs/train_optidice_stable.yaml` (step 3 with the higher-α “stable” OptiDICE config)
-   - `configs/train_optidice_ratio_buffer.yaml` (ratio-buffer aggregation experiment)
-   - `configs/train_optidice_hybrid.yaml` (OptiDICE warmdown from ratio-weighted to FedAvg)
+- `configs/train_optidice_dualavg.yaml` (FedAvg aggregation of dual + actor)
+- `configs/train_optidice_lambda_norm.yaml` (`fed_overrides` flips on λ-normalization)
+- `configs/train_optidice_dual_weighted.yaml` (λ-normalization + dual-only ratio weights)
+- `configs/train_optidice_stable.yaml` (step 3 with the higher-α “stable” OptiDICE config)
+- `configs/train_optidice_ratio_buffer.yaml` (ratio-buffer aggregation experiment)
+- `configs/train_optidice_hybrid.yaml` (OptiDICE warmdown from ratio-weighted to FedAvg)
+- `configs/train_optidice_hybrid4.yaml` (warmdown at round 200 plus a residual ratio weight floor)
 
 Each YAML keeps `rounds: 100` and logs evaluation summaries every 10 rounds. `fed_overrides` keys merge into the base federation YAML (e.g., `configs/fed/ratio_weighted.yaml`) so you can tweak aggregation tricks without duplicating entire configs.
 
