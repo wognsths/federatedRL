@@ -11,7 +11,7 @@ J(\pi_\theta) = \mathbb{E}_{(s,a)\sim \mu_\pi}[r(s,a)], \quad
 w_\pi(s,a) = \frac{\mu_\pi(s,a)}{\mu_\beta(s,a)}
 $$
 
-- 환경 접근 없이 $\mathcal{D}_i$만으로 $w_\pi$를 근사하기 위해 OptiDICE의 듀얼 파라미터 $(\nu, \lambda)$를 학습한다.
+- 환경 접근 없이 $D_i$ 만으로 $w_{\pi}$를 근사하기 위해 OptiDICE의 듀얼 파라미터 $(\nu, \lambda)$를 학습한다.
 
 ## 로컬 OptiDICE 업데이트 (`rl/optidice`)
 각 클라이언트는 전역 듀얼을 받아 로컬 배치마다 다음을 계산한다 ($\alpha$: 온도, $c$: 클립 값):
