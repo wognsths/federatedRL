@@ -51,14 +51,10 @@ $$
 ## 연방 루프 (`fed/`)
 라운드 $t$마다 서버가 전역 파라미터를 브로드캐스트 → 각 클라이언트가 $K$회 로컬 업데이트 → 서버가 집계.
 
-### 기본 FedAvg / FedProx
+### 기본 FedAvg
 
 $$
 \theta^{(t+1)} = \sum_{i=1}^n \frac{N_i}{T}\theta_i^{(t)}
-$$
-
-$$
-\text{(FedProx)} \quad \theta^{(t+1)} = (1-\beta)\theta_{\text{avg}}^{(t+1)} + \beta\theta^{(t)}
 $$
 
 ### 비율(dual) 가중 집계 `RatioWeightedAggregator`
