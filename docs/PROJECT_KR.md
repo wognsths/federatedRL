@@ -7,8 +7,8 @@
 - 행동 정책의 방문분포를 $\mu_\beta(s, a) = (1-\gamma) \sum_{t\ge0} \gamma^t \Pr_\beta(s_t=s, a_t=a)$라 둘 때, 목표는 새 정책 $\pi_\theta$의 점유비 $\mu_\pi$에 대한 기대 보상 극대화:
 
 $$
-J(\pi_\theta) = \mathbb{E}_{(s,a)\sim \mu_\pi}\bigl[r(s,a)\bigr], \quad
-w_\pi(s,a) = \frac{\mu_\pi(s,a)}{\mu_\beta(s,a)}.
+J(\pi_\theta) = \mathbb{E}_{(s,a)\sim \mu_\pi}[r(s,a)], \quad
+w_\pi(s,a) = \frac{\mu_\pi(s,a)}{\mu_\beta(s,a)}
 $$
 
 - 환경 접근 없이 $\mathcal{D}_i$만으로 $w_\pi$를 근사하기 위해 OptiDICE의 듀얼 파라미터 $(\nu, \lambda)$를 학습한다.
@@ -19,25 +19,23 @@ $$
 1) **밀도비**
 
 $$
-e_\nu(s,a,s',d) = r + \gamma(1-d)\,\nu(s') - \nu(s),
-\quad
-w_\phi(s,a) = \exp\!\Bigl(\mathrm{clip}\Bigl(\tfrac{e_\nu - \lambda}{\alpha} - 1,\; [-c,c]\Bigr)\Bigr).
+e_\nu(s,a,s',d) = r + \gamma(1-d)\nu(s') - \nu(s)
+$$
+
+$$
+w_\phi(s,a) = \exp\left(\mathrm{clip}\left(\frac{e_\nu - \lambda}{\alpha} - 1, -c, c\right)\right)
 $$
 
 2) **듀얼 손실(하강)** — DICE 라그랑지안을 음수 부호로 구현:
 
 $$
-\mathcal{L}_{\text{dual}} = \mathbb{E}_{\mathcal{D}_i}\!\left[
-  -\alpha\, w_\phi(\log w_\phi - 1)
-  + w_\phi\bigl(e_\nu - \lambda\bigr)
-\right]
-+ (1-\gamma)\,\mathbb{E}_{p_0}\!\left[\nu(s_0)\right].
+\mathcal{L}_{\text{dual}} = \mathbb{E}_{\mathcal{D}_i} \left[ -\alpha w_\phi(\log w_\phi - 1) + w_\phi(e_\nu - \lambda) \right] + (1-\gamma)\mathbb{E}_{p_0}[\nu(s_0)]
 $$
 
 3) **정책(가중 BC)** — 전역 듀얼로 계산한 $w_\phi$를 고정하고,
 
 $$
-\mathcal{L}_{\text{actor}} = -\,\mathbb{E}_{\mathcal{D}_i}\!\left[w_\phi(s,a)\,\log \pi_\theta(a\mid s)\right] - \beta\,\mathbb{E}[\log \pi_\theta(a\mid s)].
+\mathcal{L}_{\text{actor}} = -\mathbb{E}_{\mathcal{D}_i} \left[ w_\phi(s,a)\log \pi_\theta(a|s) \right] - \beta\mathbb{E}[\log \pi_\theta(a|s)]
 $$
 
 ($\beta$는 `entropy_reg`). 이는 $w_\phi$가 큰 상태-행동을 우선적으로 모방하는 감독학습 형태.
@@ -45,7 +43,7 @@ $$
 4) **행동 클로닝 보조손실**
 
 $$
-\mathcal{L}_{\text{BC}} = -\,\mathbb{E}_{\mathcal{D}_i}\bigl[\log q_\psi(a\mid s)\bigr],
+\mathcal{L}_{\text{BC}} = -\mathbb{E}_{\mathcal{D}_i}[\log q_\psi(a|s)]
 $$
 
 로컬 행동 데이터에 대한 정규분포형 BC 모델 $q_\psi$를 안정화용으로 함께 학습한다.
@@ -56,8 +54,11 @@ $$
 ### 기본 FedAvg / FedProx
 
 $$
-\theta^{(t+1)} = \sum_{i=1}^n \frac{N_i}{T}\,\theta_i^{(t)}, \qquad
-\text{(FedProx)}\;\; \theta^{(t+1)} = (1-\beta)\,\theta_{\text{avg}}^{(t+1)} + \beta\,\theta^{(t)}.
+\theta^{(t+1)} = \sum_{i=1}^n \frac{N_i}{T}\theta_i^{(t)}
+$$
+
+$$
+\text{(FedProx)} \quad \theta^{(t+1)} = (1-\beta)\theta_{\text{avg}}^{(t+1)} + \beta\theta^{(t)}
 $$
 
 ### 비율(dual) 가중 집계 `RatioWeightedAggregator`
@@ -65,23 +66,22 @@ $$
 - 유효 표본 크기(ESS) 기반 가중치:
 
 $$
-\alpha_i = \max\!\left(\frac{\mathbb{E}[w_i]^2}{\mathrm{Var}[w_i] + \varepsilon},\,\varepsilon\right),
-\qquad
-\phi^{(t+1)} = \sum_i \frac{\alpha_i}{\sum_j \alpha_j}\,\phi_i^{(t)}.
+\alpha_i = \max\left(\frac{\mathbb{E}[w_i]^2}{\mathrm{Var}[w_i] + \varepsilon}, \varepsilon\right), \quad
+\phi^{(t+1)} = \sum_i \frac{\alpha_i}{\sum_j \alpha_j}\phi_i^{(t)}
 $$
 
 `dual_only_weights=true`이면 $(\nu, \lambda)$에만 $\alpha_i$를, 나머지 파라미터는 $N_i$ 비례로 평균한다.
 - **$\lambda$ 정규화**(선택): 전역 평균 비율을 1로 맞추기 위해
 
 $$
-\lambda \leftarrow \lambda + \alpha \log \bigl(\mathbb{E}[w_i]\bigr).
+\lambda \leftarrow \lambda + \alpha \log (\mathbb{E}[w_i])
 $$
 
 ### 공유 버퍼 비율 집계 `BufferRatioAggregator`
 - 서버가 전역 데이터에서 참조 배치 $\mathcal{B}$를 샘플링하고, 각 클라이언트가 동일한 $\mathcal{B}$ 위에서 $w_i$를 평가해 가중치 계산:
 
 $$
-\alpha_i = \frac{\mathbb{E}_{\mathcal{B}}[w_i]^2}{\operatorname{Var}_{\mathcal{B}}[w_i] + \varepsilon}.
+\alpha_i = \frac{\mathbb{E}_{\mathcal{B}}[w_i]^2}{\mathrm{Var}_{\mathcal{B}}[w_i] + \varepsilon}
 $$
 
 - 동일한 참조 분포를 사용하므로 데이터 지원이 다른 클라이언트 간 가중치 비교를 더 직접적으로 만든다.
@@ -90,9 +90,11 @@ $$
 - 초기에는 비율 가중 집계를 사용하다가 점진적으로 FedAvg로 전환:
 
 $$
-\phi^{(t+1)} = (1-\gamma_t)\,\phi_{\text{ratio}}^{(t+1)} + \gamma_t\,\phi_{\text{avg}}^{(t+1)},
-\quad
-\gamma_t = \mathrm{clip}\!\left(\frac{t - t_{\text{start}}}{T_{\text{warm}}},\,0,\,1\right).
+\phi^{(t+1)} = (1-\gamma_t)\phi_{\text{ratio}}^{(t+1)} + \gamma_t\phi_{\text{avg}}^{(t+1)}
+$$
+
+$$
+\gamma_t = \mathrm{clip}\left(\frac{t - t_{\text{start}}}{T_{\text{warm}}}, 0, 1\right)
 $$
 
 - 비율 기반 초기 가속과 FedAvg의 후기 안정성을 절충한다.
